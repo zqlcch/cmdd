@@ -1,0 +1,65 @@
+unit AdminCmdLauncher;
+
+interface
+
+uses
+  Windows, SysUtils;
+
+type
+  TAdminCmdLauncher = class
+  public
+    class procedure Launch;
+  end;
+
+implementation
+
+function IsChineseLocale: Boolean;
+begin
+  Result := GetUserDefaultLCID = $0804;
+end;
+
+class procedure TAdminCmdLauncher.Launch;
+var
+  CmdLine, Title, FullCmd: string;
+  StartupInfo: TStartupInfo;
+  ProcessInfo: TProcessInformation;
+  CurrentDir: string;
+begin
+  CurrentDir := GetCurrentDir;
+
+  if IsChineseLocale then
+    Title := 'By 不断成长的极光ROM'
+  else
+    Title := 'By AuroraROM';
+
+  // 构造完整命令行：cmd.exe /k title ... & cd /d ...
+  FullCmd := Format('cmd.exe /k title %s & cd /d "%s"', [Title, CurrentDir]);
+
+  ZeroMemory(@StartupInfo, SizeOf(StartupInfo));
+  StartupInfo.cb := SizeOf(StartupInfo);
+  StartupInfo.dwFlags := STARTF_USESHOWWINDOW;
+  StartupInfo.wShowWindow := SW_SHOWNORMAL;
+
+  ZeroMemory(@ProcessInfo, SizeOf(ProcessInfo));
+
+  if not CreateProcess(
+    nil,                      // 应用程序名称
+    PChar(FullCmd),           // 命令行参数
+    nil,                      // 进程安全属性
+    nil,                      // 线程安全属性
+    False,                    // 是否继承句柄
+    0,                        // 创建标志
+    nil,                      // 环境变量
+    PChar(CurrentDir),        // 当前目录
+    StartupInfo,              // 启动信息
+    ProcessInfo               // 进程信息
+  ) then
+    RaiseLastOSError;
+
+  // 关闭句柄，不等待 cmd 退出
+  CloseHandle(ProcessInfo.hProcess);
+  CloseHandle(ProcessInfo.hThread);
+end;
+
+end.
+

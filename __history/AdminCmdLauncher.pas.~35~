@@ -1,0 +1,89 @@
+unit AdminCmdLauncher;
+
+interface
+
+uses
+  Windows, ShellAPI, SysUtils;
+
+type
+  TAdminCmdLauncher = class
+  public
+    class procedure Launch;
+  end;
+
+implementation
+
+// 手动声明Windows API函数（解决E2003错误）
+function GetConsoleCurrentDirectory(nBufferLength: DWORD; lpBuffer: LPTSTR): DWORD;
+  stdcall; external 'kernel32.dll' name 'GetConsoleCurrentDirectoryW';
+
+function IsChineseLocale: Boolean;
+begin
+  // 简体中文 LCID 为 $0804
+  Result := GetUserDefaultLCID = $0804;
+end;
+
+function GetParentCmdCurrentDir: string;
+var
+  hConsole: THandle;
+  MaxPath: array[0..MAX_PATH] of Char;
+  PathLen: DWORD;
+begin
+  Result := '';
+  // 尝试获取父控制台的当前目录
+  hConsole := GetStdHandle(STD_OUTPUT_HANDLE);
+
+  if hConsole <> INVALID_HANDLE_VALUE then
+  begin
+    // 获取控制台当前目录（使用手动声明的函数）
+    PathLen := GetConsoleCurrentDirectory(MAX_PATH, @MaxPath[0]);
+    if (PathLen > 0) and (PathLen <= MAX_PATH) then
+    begin
+      Result := StrPas(MaxPath);
+      Exit;
+    end;
+  end;
+
+  // 如果获取失败，使用当前进程的工作目录作为备选
+  Result := GetCurrentDir;
+end;
+
+class procedure TAdminCmdLauncher.Launch;
+var
+  CmdLine, Title: string;
+  ExecInfo: TShellExecuteInfo;
+  CurrentDir: string;
+begin
+  // 获取父CMD的当前目录
+  CurrentDir := GetParentCmdCurrentDir;
+
+  // 根据语言环境设置标题
+  if IsChineseLocale then
+    Title := 'By 不断成长的极光ROM'
+  else
+    Title := 'By AuroraROM';
+
+  // 确保路径中有空格时能正确处理
+  CurrentDir := StringReplace(CurrentDir, '"', '\\"', [rfReplaceAll]);
+
+  // 构造命令行参数：设置标题 + 切换目录
+  CmdLine := Format('/k title %s & cd /d "%s"', [Title, CurrentDir]);
+
+  // 初始化 ShellExecuteInfo 结构体
+  ZeroMemory(@ExecInfo, SizeOf(ExecInfo));
+  ExecInfo.cbSize := SizeOf(ExecInfo);
+  ExecInfo.fMask := SEE_MASK_NOCLOSEPROCESS;
+  ExecInfo.Wnd := 0;
+  ExecInfo.lpVerb := 'runas'; // 以管理员权限运行
+  ExecInfo.lpFile := 'cmd.exe';
+  ExecInfo.lpParameters := PChar(CmdLine);
+  ExecInfo.lpDirectory := PChar(CurrentDir);
+  ExecInfo.nShow := SW_SHOWNORMAL;
+
+  // 执行命令
+  if not ShellExecuteEx(@ExecInfo) then
+    RaiseLastOSError;
+end;
+
+end.
+

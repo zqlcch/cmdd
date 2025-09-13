@@ -1,0 +1,45 @@
+unit AdminCmdLauncher;
+
+interface
+
+uses
+  Windows, ShellAPI, SysUtils;
+
+type
+  TAdminCmdLauncher = class
+  public
+    class procedure Launch; static;
+  end;
+
+implementation
+
+class procedure TAdminCmdLauncher.Launch;
+var
+  SEInfo: TShellExecuteInfo;
+  CmdLine: string;
+  CurrentDir: string;
+begin
+  // 获取当前工作目录（非程序路径）
+  CurrentDir := GetCurrentDir;
+
+  // 构造命令行参数：cmd /k cd /d 路径
+  CmdLine := Format('/k cd /d "%s"', [CurrentDir]);
+
+  // 初始化 ShellExecuteInfo 结构体
+  ZeroMemory(@SEInfo, SizeOf(SEInfo));
+  SEInfo.cbSize := SizeOf(SEInfo);
+  SEInfo.fMask := SEE_MASK_NOCLOSEPROCESS;
+  SEInfo.Wnd := 0;
+  SEInfo.lpVerb := 'runas'; // 以管理员身份运行
+  SEInfo.lpFile := 'cmd.exe';
+  SEInfo.lpParameters := PChar(CmdLine);
+  SEInfo.lpDirectory := nil;
+  SEInfo.nShow := SW_SHOWNORMAL;
+
+  // 执行命令
+  if not ShellExecuteEx(@SEInfo) then
+    RaiseLastOSError;
+end;
+
+end.
+
